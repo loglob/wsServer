@@ -11,7 +11,12 @@ add_library(ws
     src/base64/base64.c
     src/sha1/sha1.c
     src/handshake/handshake.c)
-target_link_libraries(ws pthread)
+
+if (WIN32)
+	target_link_libraries(ws pthread ws2_32)
+else()
+	target_link_libraries(ws pthread)
+endif()
 
 add_executable(send_receive
     example/send_receive.c)

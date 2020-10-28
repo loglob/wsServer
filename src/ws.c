@@ -14,8 +14,16 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>
 */
-#include <sys/socket.h>
-#include <arpa/inet.h>
+
+#ifdef _WIN32
+	#include <winsock2.h>
+	#include <windows.h>
+	typedef int socklen_t;
+#else
+	#include <sys/socket.h>
+	#include <arpa/inet.h>
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +146,7 @@ int ws_sendframe(int fd, const char *msg, bool broadcast)
 	}
 
 	response[idx_response] = '\0';
-	output = write(fd, response, idx_response);
+	output = send(fd, response, idx_response, 0);
 	if (broadcast)
 	{
 		pthread_mutex_lock(&mutex);
@@ -146,7 +154,7 @@ int ws_sendframe(int fd, const char *msg, bool broadcast)
 			{
 				sock = client_socks[i];
 				if ((sock > -1) && (sock != fd))
-					output += write(sock, response, idx_response);
+					output += send(sock, response, idx_response, 0);
 			}
 		pthread_mutex_unlock(&mutex);
 	}
@@ -231,7 +239,7 @@ static unsigned char* ws_receiveframe(unsigned char *frame, size_t length, int *
 static void* ws_establishconnection(void *vsock)
 {
 	int sock;                           /* File descriptor.               */
-	size_t n;                           /* Number of bytes sent/received. */
+	ssize_t n;                           /* Number of bytes sent/received. */
 	unsigned char frm[MESSAGE_LENGTH];  /* Frame.                         */
 	unsigned char *msg;                 /* Message.                       */
 	char *response;                     /* Response frame.                */
@@ -244,7 +252,7 @@ static void* ws_establishconnection(void *vsock)
 	sock = (int)(intptr_t)vsock;
 
 	/* Receives message until get some error. */
-	while ((n = read(sock, frm, sizeof(unsigned char) * MESSAGE_LENGTH)) > 0)
+	while ((n = recv(sock, frm, sizeof(unsigned char) * MESSAGE_LENGTH, 0)) > 0)
 	{
 		/* If not handshaked yet. */
 		if (!handshaked)
@@ -261,7 +269,7 @@ static void* ws_establishconnection(void *vsock)
 				"------------------------------------\n"
 				,response);
 #endif
-			n = write(sock, response, strlen(response));
+			n = send(sock, response, strlen(response), 0);
 			events.onopen(sock);
 			free(response);
 		}
@@ -308,8 +316,12 @@ closed:
 			}
 		}
 	pthread_mutex_unlock(&mutex);
-	close(sock);
 
+#ifdef _WIN32
+	closesocket(sock);
+#else
+	close(sock);
+#endif
 	return (vsock);
 }
 
@@ -337,6 +349,12 @@ int ws_socket(struct ws_events *evs, uint16_t port)
 
 	/* Copy events. */
 	memcpy(&events, evs, sizeof(struct ws_events));
+
+#ifdef _WIN32
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0)
+		panic("WSAStartup failed!");
+#endif
 
 	/* Create socket. */
 	sock = socket(AF_INET, SOCK_STREAM, 0);
