@@ -227,7 +227,7 @@
 		/**
 		 * @brief On open event, called when a new client connects.
 		 */
-		void (*onopen)(int);
+		void (*onopen)(int, char*);
 
 		/**
 		 * @brief On close event, called when a client disconnects.

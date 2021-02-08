@@ -36,12 +36,13 @@
  * is used in order to send messages and retrieve informations
  * about the client.
  */
-void onopen(int fd)
+void onopen(int fd, char *path)
 {
 	char *cli;
 	cli = ws_getaddress(fd);
-	printf("Connection opened, client: %d | addr: %s\n", fd, cli);
+	printf("Connection opened, client: %d | addr: %s | path: %s\n", fd, cli, path);
 	free(cli);
+	free(path);
 }
 
 /**

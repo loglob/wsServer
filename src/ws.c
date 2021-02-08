@@ -589,6 +589,9 @@ static int do_handshake(struct ws_frame_data *wfd, int p_index)
 	wfd->amt_read = n;
 	wfd->cur_pos  = (size_t)((ptrdiff_t)(p - (char *)wfd->frm)) + 4;
 
+	char *path = NULL;
+	sscanf((const char*)wfd->frm, " GET %ms ", &path);
+
 	/* Get response. */
 	if (get_handshake_response((char *)wfd->frm, &response) < 0)
 	{
@@ -612,7 +615,7 @@ static int do_handshake(struct ws_frame_data *wfd, int p_index)
 	}
 
 	/* Trigger events and clean up buffers. */
-	ports[p_index].events.onopen(CLI_SOCK(wfd->sock));
+	ports[p_index].events.onopen(CLI_SOCK(wfd->sock), path);
 	free(response);
 	return (0);
 }
