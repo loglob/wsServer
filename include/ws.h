@@ -251,6 +251,8 @@
 	extern int ws_sendframe_bin(int fd, const char *msg, uint64_t size,
 		bool broadcast);
 	extern int ws_get_state(int fd);
+	extern int ws_close(int fd, short code, const char *data, size_t len);
+	extern int ws_close_msg(int fd, short code, const char *message);
 	extern int ws_close_client(int fd);
 	extern int ws_socket(struct ws_events *evs, uint16_t port);
 

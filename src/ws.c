@@ -497,6 +497,84 @@ int ws_get_state(int fd)
 
 /**
  * @brief Close the client connection for the given @p fd
+ * with the given close code and message data.
+ *
+ * @param fd Client fd.
+ * @param code Close code.
+ * @param data Data of closing message.
+ * @param len Length of data.  
+ *
+ * @return Returns 0 on success, -1 otherwise.
+ *
+ * @note If the client did not send a close frame in
+ * TIMEOUT_MS milliseconds, the server will close the
+ * connection with error code (1002).
+ */
+int ws_close(int fd, short code, const char *data, size_t len)
+{
+	int i;
+
+	/* Check if fd belongs to a connected client. */
+	if ((i = get_client_index(fd)) == -1)
+		return (-1);
+
+	char *msgdata = malloc(len + 2);
+
+	if(!msgdata)
+	{
+		DEBUG("malloc failure\n");
+		return (-1);
+	}
+
+	msgdata[0] = (code >> 8);
+	msgdata[1] = (code & 0xFF);
+	memcpy(msgdata + 2, data, len);
+
+	/*
+	 * Instead of using do_close(), we use this to avoid using
+	 * msg_ctrl buffer from wfd and avoid a race condition
+	 * if this is invoked asynchronously.
+	 */
+	if (ws_sendframe(CLI_SOCK(fd), msgdata, len + 2, false,
+			WS_FR_OP_CLSE) < 0)
+	{
+		free(msgdata);
+		DEBUG("An error has occurred while sending closing frame!\n");
+		return (-1);
+	}
+
+	free(msgdata);
+
+	/*
+	 * Starts the timeout thread: if the client did not send
+	 * a close frame in TIMEOUT_MS milliseconds, the server
+	 * will close the connection with error code (1002).
+	 */
+	start_close_timeout(i);
+	return (0);
+}
+
+/**
+ * @brief Close the client connection for the given @p fd
+ * with the given close code and reason message.
+ *
+ * @param fd Client fd.
+ * @param code Close code.
+ * @param message Contents of closing message.
+ *
+ * @return Returns 0 on success, -1 otherwise.
+ *
+ * @note If the client did not send a close frame in
+ * TIMEOUT_MS milliseconds, the server will close the
+ * connection with error code (1002).
+ */
+int ws_close_msg(int fd, short code, const char *message)
+{
+	return ws_close(fd, code, message, message ? strlen(message) : 0);
+}
+
+/**
+ * @brief Close the client connection for the given @p fd
  * with normal close code (1000) and no reason string.
  *
  * @param fd Client fd.
@@ -509,36 +587,7 @@ int ws_get_state(int fd)
  */
 int ws_close_client(int fd)
 {
-	unsigned char clse_code[2];
-	int cc;
-	int i;
-
-	/* Check if fd belongs to a connected client. */
-	if ((i = get_client_index(fd)) == -1)
-		return (-1);
-
-	/*
-	 * Instead of using do_close(), we use this to avoid using
-	 * msg_ctrl buffer from wfd and avoid a race condition
-	 * if this is invoked asynchronously.
-	 */
-	cc           = WS_CLSE_NORMAL;
-	clse_code[0] = (cc >> 8);
-	clse_code[1] = (cc & 0xFF);
-	if (ws_sendframe(CLI_SOCK(fd), (const char *)clse_code, sizeof(char) * 2, false,
-			WS_FR_OP_CLSE) < 0)
-	{
-		DEBUG("An error has occurred while sending closing frame!\n");
-		return (-1);
-	}
-
-	/*
-	 * Starts the timeout thread: if the client did not send
-	 * a close frame in TIMEOUT_MS milliseconds, the server
-	 * will close the connection with error code (1002).
-	 */
-	start_close_timeout(i);
-	return (0);
+	return ws_close(fd, WS_CLSE_NORMAL, NULL, 0);
 }
 
 /**
